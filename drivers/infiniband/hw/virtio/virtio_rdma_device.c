@@ -18,13 +18,43 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
+#include <linux/virtio_config.h>
+
 #include "virtio_rdma.h"
+
+static void rdma_ctrl_ack(struct virtqueue *vq)
+{
+	struct virtio_rdma_info *dev = vq->vdev->priv;
+
+	wake_up(&dev->acked);
+
+	printk("%s\n", __func__);
+}
 
 int init_device(struct virtio_rdma_info *dev)
 {
+#define TMP_MAX_VQ 1
+	int rc;
+	struct virtqueue *vqs[TMP_MAX_VQ];
+	vq_callback_t *callbacks[TMP_MAX_VQ];
+	const char *names[TMP_MAX_VQ];
+
+	names[0] = "ctrl";
+	callbacks[0] = rdma_ctrl_ack;
+	callbacks[0] = NULL;
+
+	rc = dev->vdev->config->find_vqs(dev->vdev, TMP_MAX_VQ, vqs, callbacks,
+					 names, NULL, NULL);
+	if (rc)
+		return rc;
+
+	dev->ctrl_vq = vqs[0];
+
 	return 0;
 }
 
 void fini_device(struct virtio_rdma_info *dev)
 {
+	dev->vdev->config->reset(dev->vdev);
+	dev->vdev->config->del_vqs(dev->vdev);
 }

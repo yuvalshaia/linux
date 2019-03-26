@@ -22,6 +22,44 @@
 #include <rdma/ib_mad.h>
 
 #include "virtio_rdma.h"
+#include "virtio_rdma_device.h"
+
+/* TODO: Move to uapi header file */
+enum {
+	VIRTIO_CMD_QUERY_DEVICE,
+};
+/* TODO: Move to uapi header file */
+
+static int virtio_rdma_exec_cmd(struct virtio_rdma_info *di, int cmd,
+				struct scatterlist *in, struct scatterlist *out)
+{
+	struct scatterlist *sgs[4], hdr, status;
+	unsigned tmp;
+
+	di->ctrl.cmd = cmd;
+	di->ctrl.status = ~0;
+
+	sg_init_one(&hdr, &di->ctrl.cmd, sizeof(di->ctrl.cmd));
+	sgs[0] = &hdr;
+	sgs[1] = in;
+	sgs[2] = out;
+	sg_init_one(&status, &di->ctrl.status, sizeof(di->ctrl.status));
+	sgs[3] = &status;
+
+	virtqueue_add_sgs(di->ctrl_vq, sgs, 2, 2, di, GFP_ATOMIC);
+
+	if (unlikely(!virtqueue_kick(di->ctrl_vq)))
+		return di->ctrl.status == VIRTIO_RDMA_CTRL_OK;
+
+	/* Spin for a response, the kick causes an ioport write, trapping
+	 * into the hypervisor, so the request should be handled
+	 * immediately */
+	while (!virtqueue_get_buf(di->ctrl_vq, &tmp) &&
+	       !virtqueue_is_broken(di->ctrl_vq))
+		cpu_relax();
+
+	return di->ctrl.status;
+}
 
 static int virtio_rdma_port_immutable(struct ib_device *ibdev, u8 port_num,
 				      struct ib_port_immutable *immutable)
@@ -41,17 +79,34 @@ static int virtio_rdma_port_immutable(struct ib_device *ibdev, u8 port_num,
 	return 0;
 }
 
-int virtio_rdma_query_device(struct ib_device *ibdev,
-			     struct ib_device_attr *props, struct ib_udata *uhw)
+static int virtio_rdma_query_device(struct ib_device *ibdev,
+				    struct ib_device_attr *props,
+				    struct ib_udata *uhw)
 {
+	struct scatterlist data;
+	int offs;
+	int rc;
+
 	if (uhw->inlen || uhw->outlen)
 		return -EINVAL;
 
-	return 0;
+	/* We start with sys_image_guid because of inconsistency beween ib_
+	 * and ibv_ */
+	offs = offsetof(struct ib_device_attr, sys_image_guid);
+	sg_init_one(&data, (void *)props + offs, sizeof(*props) - offs);
+
+	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_QUERY_DEVICE, NULL,
+				  &data);
+
+	printk("%s: rc %d\n", __func__, rc);
+	printk("%s: sys_image_guid 0x%llx\n", __func__,
+	       be64_to_cpu(props->sys_image_guid));
+
+	return rc;
 }
 
-int virtio_rdma_query_port(struct ib_device *ibdev, u8 port,
-			   struct ib_port_attr *props)
+static int virtio_rdma_query_port(struct ib_device *ibdev, u8 port,
+				  struct ib_port_attr *props)
 {
 	return 0;
 }
@@ -71,21 +126,56 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.query_gid = virtio_rdma_query_gid,
 };
 
+static ssize_t hca_type_show(struct device *device,
+			     struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s-%s\n", VIRTIO_RDMA_HW_NAME,
+		       VIRTIO_RDMA_DRIVER_VER);
+}
+static DEVICE_ATTR_RO(hca_type);
+
+static ssize_t hw_rev_show(struct device *device,
+			   struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", VIRTIO_RDMA_HW_REV);
+}
+static DEVICE_ATTR_RO(hw_rev);
+
+static ssize_t board_id_show(struct device *device,
+			     struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", VIRTIO_RDMA_BOARD_ID);
+}
+static DEVICE_ATTR_RO(board_id);
+
+static struct attribute *virtio_rdmaa_class_attributes[] = {
+	&dev_attr_hw_rev.attr,
+	&dev_attr_hca_type.attr,
+	&dev_attr_board_id.attr,
+	NULL,
+};
+
+static const struct attribute_group virtio_rdmaa_attr_group = {
+	.attrs = virtio_rdmaa_class_attributes,
+};
+
 int init_ib(struct virtio_rdma_info *dev)
 {
 	int rc;
 
 	dev->ib_dev.owner = THIS_MODULE;
 	dev->ib_dev.num_comp_vectors = 1;
-	dev->ib_dev.phys_port_cnt = 1;
 	dev->ib_dev.dev.parent = &dev->vdev->dev;
 	dev->ib_dev.node_type = RDMA_NODE_IB_CA;
+	dev->ib_dev.phys_port_cnt = 1;
+
+	rdma_set_device_sysfs_group(&dev->ib_dev, &virtio_rdmaa_attr_group);
 
 	ib_set_device_ops(&dev->ib_dev, &virtio_rdma_dev_ops);
 
 	rc = ib_register_device(&dev->ib_dev, "virtio_rdma%d");
 
-	return 0;
+	return rc;
 }
 
 void fini_ib(struct virtio_rdma_info *dev)

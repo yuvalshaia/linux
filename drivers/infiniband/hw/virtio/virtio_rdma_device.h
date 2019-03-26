@@ -21,6 +21,11 @@
 #ifndef __VIRTIO_RDMA_DEVICE__
 #define __VIRTIO_RDMA_DEVICE__
 
+#define VIRTIO_RDMA_BOARD_ID	1
+#define VIRTIO_RDMA_HW_NAME	"virtio-rdma"
+#define VIRTIO_RDMA_HW_REV	1
+#define VIRTIO_RDMA_DRIVER_VER	"1.0"
+
 int init_device(struct virtio_rdma_info *dev);
 void fini_device(struct virtio_rdma_info *dev);
 

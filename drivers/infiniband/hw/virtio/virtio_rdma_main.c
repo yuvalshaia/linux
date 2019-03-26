@@ -37,58 +37,61 @@
 
 static int virtrdma_probe(struct virtio_device *vdev)
 {
-	struct virtio_rdma_info *dev;
-	int rc;
-	
-	pr_info("VirtIO RDMA device %d probed\n", vdev->index);
+	struct virtio_rdma_info *ri;
+	int rc = -EIO;
 
-	dev = ib_alloc_device(virtio_rdma_info, ib_dev);
-	if (!dev) {
+	ri = ib_alloc_device(virtio_rdma_info, ib_dev);
+	if (!ri) {
 		pr_err("Fail to allocate IB device\n");
 		rc = -ENOMEM;
-		goto out_dealloc_ib_device;
+		goto out;
 	}
-	vdev->priv = dev;
+	vdev->priv = ri;
 
-	dev->vdev = vdev;
+	ri->vdev = vdev;
 
-	rc = init_device(dev);
+	rc = init_device(ri);
 	if (rc) {
 		pr_err("Fail to connect to device\n");
 		goto out_dealloc_ib_device;
 	}
 
-	rc = init_ib(dev);
+	rc = init_ib(ri);
 	if (rc) {
 		pr_err("Fail to connect to IB layer\n");
 		goto out_fini_device;
 	}
 
-	return 0;
+	pr_info("VirtIO RDMA device %d probed\n", vdev->index);
+
+	goto out;
 
 out_fini_device:
-	fini_device(dev);
+	fini_device(ri);
 
 out_dealloc_ib_device:
-	fini_ib(dev);
+	ib_dealloc_device(&ri->ib_dev);
 
 	vdev->priv = NULL;
 
+out:
 	return rc;
 }
 
 static void virtrdma_remove(struct virtio_device *vdev)
 {
-	struct virtio_rdma_info *dev = vdev->priv;
+	struct virtio_rdma_info *ri = vdev->priv;
 
-	if (!dev)
+	if (!ri)
 		return;
 
-	fini_ib(dev);
-
-	fini_device(dev);
-
 	vdev->priv = NULL;
+
+	fini_ib(ri);
+
+	fini_device(ri);
+
+	ib_dealloc_device(&ri->ib_dev);
 
 	pr_info("VirtIO RDMA device %d removed\n", vdev->index);
 }
