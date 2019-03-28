@@ -27,6 +27,7 @@
 /* TODO: Move to uapi header file */
 enum {
 	VIRTIO_CMD_QUERY_DEVICE,
+	VIRTIO_CMD_QUERY_PORT,
 };
 /* TODO: Move to uapi header file */
 
@@ -108,7 +109,20 @@ static int virtio_rdma_query_device(struct ib_device *ibdev,
 static int virtio_rdma_query_port(struct ib_device *ibdev, u8 port,
 				  struct ib_port_attr *props)
 {
-	return 0;
+	struct scatterlist data;
+	int offs;
+	int rc;
+
+	/* We start with state because of inconsistency beween ib and ibv */
+	offs = offsetof(struct ib_port_attr, state);
+	sg_init_one(&data, (void *)props + offs, sizeof(*props) - offs);
+
+	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_QUERY_PORT, NULL,
+				  &data);
+
+	printk("%s: rc %d\n", __func__, rc);
+
+	return rc;
 }
 
 int virtio_rdma_query_gid(struct ib_device *ibdev, u8 port, int index,
