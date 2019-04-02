@@ -36,15 +36,14 @@ int init_device(struct virtio_rdma_info *dev)
 #define TMP_MAX_VQ 1
 	int rc;
 	struct virtqueue *vqs[TMP_MAX_VQ];
-	vq_callback_t *callbacks[TMP_MAX_VQ];
+	vq_callback_t *cbs[TMP_MAX_VQ];
 	const char *names[TMP_MAX_VQ];
 
 	names[0] = "ctrl";
-	callbacks[0] = rdma_ctrl_ack;
-	callbacks[0] = NULL;
+	cbs[0] = rdma_ctrl_ack;
+	cbs[0] = NULL;
 
-	rc = dev->vdev->config->find_vqs(dev->vdev, TMP_MAX_VQ, vqs, callbacks,
-					 names, NULL, NULL);
+	rc = virtio_find_vqs(dev->vdev, TMP_MAX_VQ, vqs, cbs, names, NULL);
 	if (rc)
 		return rc;
 

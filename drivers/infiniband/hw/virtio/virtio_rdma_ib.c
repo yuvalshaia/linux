@@ -18,6 +18,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
+#include <linux/scatterlist.h>
+#include <linux/virtio.h>
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
 
@@ -26,16 +28,31 @@
 
 /* TODO: Move to uapi header file */
 enum {
-	VIRTIO_CMD_QUERY_DEVICE,
+	VIRTIO_CMD_QUERY_DEVICE = 10,
 	VIRTIO_CMD_QUERY_PORT,
 };
+
+struct cmd_query_port {
+	__u8 port;
+};
 /* TODO: Move to uapi header file */
+
+/* TODO: For the scope fof the RFC i'm utilizing ib*_*_attr structures */
 
 static int virtio_rdma_exec_cmd(struct virtio_rdma_info *di, int cmd,
 				struct scatterlist *in, struct scatterlist *out)
 {
 	struct scatterlist *sgs[4], hdr, status;
 	unsigned tmp;
+	int rc;
+	struct scatterlist t1;
+	__u8 *t2;
+
+	struct cmd_query_port t3;
+	t3.port = 114;
+
+	t2 = kmalloc(sizeof(*t2), GFP_ATOMIC);
+	*t2 = 213;
 
 	di->ctrl.cmd = cmd;
 	di->ctrl.status = ~0;
@@ -43,11 +60,20 @@ static int virtio_rdma_exec_cmd(struct virtio_rdma_info *di, int cmd,
 	sg_init_one(&hdr, &di->ctrl.cmd, sizeof(di->ctrl.cmd));
 	sgs[0] = &hdr;
 	sgs[1] = in;
+
+	//sg_init_one(&t1, &di->ctrl.cmd, sizeof(di->ctrl.cmd));
+	//sg_init_one(&t1, &di->ctrl.status, sizeof(di->ctrl.status));
+	sg_init_one(&t1, t2, sizeof(t2));
+	//sg_init_one(&t1, &t3, sizeof(t3));
+	sgs[1] = &t1;
+
 	sgs[2] = out;
 	sg_init_one(&status, &di->ctrl.status, sizeof(di->ctrl.status));
 	sgs[3] = &status;
 
-	virtqueue_add_sgs(di->ctrl_vq, sgs, 2, 2, di, GFP_ATOMIC);
+	rc = virtqueue_add_sgs(di->ctrl_vq, sgs, 2, 2, di, GFP_ATOMIC);
+	if (rc)
+		return rc;
 
 	if (unlikely(!virtqueue_kick(di->ctrl_vq)))
 		return di->ctrl.status == VIRTIO_RDMA_CTRL_OK;
@@ -59,6 +85,9 @@ static int virtio_rdma_exec_cmd(struct virtio_rdma_info *di, int cmd,
 	       !virtqueue_is_broken(di->ctrl_vq))
 		cpu_relax();
 
+	kfree(t2);
+
+	printk("%s: rc %d\n", __func__, di->ctrl.status);
 	return di->ctrl.status;
 }
 
@@ -84,9 +113,14 @@ static int virtio_rdma_query_device(struct ib_device *ibdev,
 				    struct ib_device_attr *props,
 				    struct ib_udata *uhw)
 {
-	struct scatterlist data;
+	struct scatterlist data, d;
 	int offs;
 	int rc;
+	struct cmd_query_port cmd;
+
+	cmd.port = 17;
+	sg_init_one(&d, &cmd, sizeof(cmd));
+	printk("%s: port %d\n", __func__, cmd.port);
 
 	if (uhw->inlen || uhw->outlen)
 		return -EINVAL;
@@ -96,31 +130,63 @@ static int virtio_rdma_query_device(struct ib_device *ibdev,
 	offs = offsetof(struct ib_device_attr, sys_image_guid);
 	sg_init_one(&data, (void *)props + offs, sizeof(*props) - offs);
 
-	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_QUERY_DEVICE, NULL,
+	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_QUERY_DEVICE, &d,
 				  &data);
 
-	printk("%s: rc %d\n", __func__, rc);
 	printk("%s: sys_image_guid 0x%llx\n", __func__,
 	       be64_to_cpu(props->sys_image_guid));
 
 	return rc;
 }
 
+
 static int virtio_rdma_query_port(struct ib_device *ibdev, u8 port,
 				  struct ib_port_attr *props)
 {
-	struct scatterlist data;
+	//struct scatterlist out;
+	//int offs;
+	int rc;
+	//struct ib_device_attr dev_attr;
+
+	//rc = virtio_rdma_query_device(ibdev, &dev_attr, NULL);
+	rc = 0;
+
+	//offs = offsetof(struct ib_port_attr, state);
+	//sg_init_one(&out, (void *)props + offs, sizeof(*props) - offs);
+	//sg_init_one(&out, &dev_attr, sizeof(dev_attr));
+
+	//rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_QUERY_PORT, &out,
+	//			  &out);
+
+	return rc;
+}
+
+static int virtio_rdma_query_port1(struct ib_device *ibdev, u8 port,
+				  struct ib_port_attr *props)
+{
+	//struct cmd_query_port cmd;
+	//struct scatterlist in, out;
+	struct scatterlist out, d;
 	int offs;
 	int rc;
+	static int s = 0;
+
+	if (s)
+		return 0;
 
 	/* We start with state because of inconsistency beween ib and ibv */
 	offs = offsetof(struct ib_port_attr, state);
-	sg_init_one(&data, (void *)props + offs, sizeof(*props) - offs);
+	sg_init_one(&out, (void *)props + offs, sizeof(*props) - offs);
+	sg_init_one(&d, (void *)props, sizeof(*props));
 
-	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_QUERY_PORT, NULL,
-				  &data);
+	//printk("%s: port %d\n", __func__, port);
+	//cmd.port = port;
+	//sg_init_one(&in, &cmd, sizeof(cmd));
 
-	printk("%s: rc %d\n", __func__, rc);
+	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_QUERY_PORT, &d,
+				  &out);
+
+	printk("%s: gid_tbl_len %d\n", __func__, props->gid_tbl_len);
 
 	return rc;
 }
@@ -182,6 +248,9 @@ int init_ib(struct virtio_rdma_info *dev)
 	dev->ib_dev.dev.parent = &dev->vdev->dev;
 	dev->ib_dev.node_type = RDMA_NODE_IB_CA;
 	dev->ib_dev.phys_port_cnt = 1;
+	dev->ib_dev.uverbs_cmd_mask =
+		(1ull << IB_USER_VERBS_CMD_QUERY_DEVICE)	|
+		(1ull << IB_USER_VERBS_CMD_QUERY_PORT);
 
 	rdma_set_device_sysfs_group(&dev->ib_dev, &virtio_rdmaa_attr_group);
 
