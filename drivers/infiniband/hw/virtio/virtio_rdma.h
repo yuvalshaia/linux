@@ -24,29 +24,10 @@
 #include <linux/virtio.h>
 #include <rdma/ib_verbs.h>
 
-/* TODO: Move to uapi header */
-/*
- * Control virtqueue data structures
- *
- * The control virtqueue expects a header in the first sg entry
- * and an ack/status response in the last entry.  Data for the
- * command goes in between.
- */
-
-#define VIRTIO_RDMA_CTRL_OK	0
-#define VIRTIO_RDMA_CTRL_ERR	1
-
-struct control_buf {
-	__u8 cmd;
-	__u8 status;
-};
-/* TODO: Move to uapi header */
-
 struct virtio_rdma_info {
 	struct ib_device ib_dev;
 	struct virtio_device *vdev;
 	struct virtqueue *ctrl_vq;
-	struct control_buf ctrl;
 	wait_queue_head_t acked; /* arm on send to host, release on recv */
 };
 
