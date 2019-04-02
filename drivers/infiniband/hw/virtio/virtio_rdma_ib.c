@@ -91,7 +91,7 @@ static int virtio_rdma_exec_cmd(struct virtio_rdma_info *di, int cmd,
 		cpu_relax();
 
 out_with_status:
-	printk("%s: status %d\n", __func__, ctrl->status);
+	printk("%s: cmd %d, status %d\n", __func__, ctrl->cmd, ctrl->status);
 	rc = ctrl->status == VIRTIO_RDMA_CTRL_OK ? 0 : 1;
 
 out:
