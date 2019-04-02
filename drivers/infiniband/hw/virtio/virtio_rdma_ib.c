@@ -45,14 +45,11 @@ static int virtio_rdma_exec_cmd(struct virtio_rdma_info *di, int cmd,
 	struct scatterlist *sgs[4], hdr, status;
 	unsigned tmp;
 	int rc;
-	struct scatterlist t1;
-	__u8 *t2;
 
-	struct cmd_query_port t3;
-	t3.port = 114;
-
-	t2 = kmalloc(sizeof(*t2), GFP_ATOMIC);
-	*t2 = 213;
+	//struct scatterlist t1;
+	//__u8 *t2;
+	//t2 = kmalloc(sizeof(*t2), GFP_ATOMIC);
+	//*t2 = 213;
 
 	di->ctrl.cmd = cmd;
 	di->ctrl.status = ~0;
@@ -63,9 +60,8 @@ static int virtio_rdma_exec_cmd(struct virtio_rdma_info *di, int cmd,
 
 	//sg_init_one(&t1, &di->ctrl.cmd, sizeof(di->ctrl.cmd));
 	//sg_init_one(&t1, &di->ctrl.status, sizeof(di->ctrl.status));
-	sg_init_one(&t1, t2, sizeof(t2));
-	//sg_init_one(&t1, &t3, sizeof(t3));
-	sgs[1] = &t1;
+	//sg_init_one(&t1, t2, sizeof(t2));
+	//sgs[1] = &t1;
 
 	sgs[2] = out;
 	sg_init_one(&status, &di->ctrl.status, sizeof(di->ctrl.status));
@@ -85,7 +81,7 @@ static int virtio_rdma_exec_cmd(struct virtio_rdma_info *di, int cmd,
 	       !virtqueue_is_broken(di->ctrl_vq))
 		cpu_relax();
 
-	kfree(t2);
+	//kfree(t2);
 
 	printk("%s: rc %d\n", __func__, di->ctrl.status);
 	return di->ctrl.status;
@@ -116,11 +112,12 @@ static int virtio_rdma_query_device(struct ib_device *ibdev,
 	struct scatterlist data, d;
 	int offs;
 	int rc;
-	struct cmd_query_port cmd;
+	struct cmd_query_port *cmd;
 
-	cmd.port = 17;
-	sg_init_one(&d, &cmd, sizeof(cmd));
-	printk("%s: port %d\n", __func__, cmd.port);
+	cmd = kmalloc(sizeof(*cmd), GFP_ATOMIC);
+	cmd->port = 17;
+	sg_init_one(&d, cmd, sizeof(cmd));
+	printk("%s: port %d\n", __func__, cmd->port);
 
 	if (uhw->inlen || uhw->outlen)
 		return -EINVAL;
@@ -135,6 +132,8 @@ static int virtio_rdma_query_device(struct ib_device *ibdev,
 
 	printk("%s: sys_image_guid 0x%llx\n", __func__,
 	       be64_to_cpu(props->sys_image_guid));
+
+	kfree(cmd);
 
 	return rc;
 }
