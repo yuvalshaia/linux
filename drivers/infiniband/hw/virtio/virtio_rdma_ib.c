@@ -176,6 +176,226 @@ int virtio_rdma_query_gid(struct ib_device *ibdev, u8 port, int index,
 {
 	memset(gid, 0, sizeof(union ib_gid));
 
+	printk("%s: port %d, index %d\n", __func__, port, index);
+
+	return 0;
+}
+
+static int virtio_rdma_add_gid(const struct ib_gid_attr *attr, void **context)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+struct ib_mr *virtio_rdma_alloc_mr(struct ib_pd *pd, enum ib_mr_type mr_type,
+				   u32 max_num_sg)
+{
+	printk("%s: mr_type %d, max_num_sg %d\n", __func__, mr_type,
+	       max_num_sg);
+
+	return NULL;
+}
+
+int virtio_rdma_alloc_pd(struct ib_pd *ibpd, struct ib_ucontext *context,
+			 struct ib_udata *udata)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_alloc_ucontext(struct ib_ucontext *uctx, struct ib_udata *udata)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+struct ib_ah *virtio_rdma_create_ah(struct ib_pd *pd,
+				    struct rdma_ah_attr *ah_attr, u32 flags,
+				    struct ib_udata *udata)
+{
+	printk("%s:\n", __func__);
+
+	return NULL;
+}
+
+struct ib_cq *virtio_rdma_create_cq(struct ib_device *ibdev,
+				    const struct ib_cq_init_attr *attr,
+				    struct ib_ucontext *context,
+				    struct ib_udata *udata)
+{
+	printk("%s:\n", __func__);
+
+	return NULL;
+}
+
+struct ib_qp *virtio_rdma_create_qp(struct ib_pd *pd,
+				    struct ib_qp_init_attr *init_attr,
+				    struct ib_udata *udata)
+{
+	printk("%s:\n", __func__);
+
+	return NULL;
+}
+
+void virtio_rdma_dealloc_pd(struct ib_pd *pd)
+{
+	printk("%s:\n", __func__);
+}
+
+void virtio_rdma_dealloc_ucontext(struct ib_ucontext *ibcontext)
+
+{
+}
+
+static int virtio_rdma_del_gid(const struct ib_gid_attr *attr, void **context)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_dereg_mr(struct ib_mr *ibmr)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_destroy_ah(struct ib_ah *ah, u32 flags)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_destroy_cq(struct ib_cq *cq)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_destroy_qp(struct ib_qp *qp)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+static void virtio_rdma_get_fw_ver_str(struct ib_device *device, char *str)
+{
+	printk("%s:\n", __func__);
+}
+
+struct ib_mr *virtio_rdma_get_dma_mr(struct ib_pd *pd, int acc)
+
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+enum rdma_link_layer virtio_rdma_port_link_layer(struct ib_device *ibdev,
+						 u8 port)
+{
+	return IB_LINK_LAYER_ETHERNET;
+}
+
+static struct net_device *virtio_rdma_get_netdev(struct ib_device *ibdev,
+						 u8 port_num)
+{
+	printk("%s:\n", __func__);
+
+	return NULL;
+}
+
+int virtio_rdma_map_mr_sg(struct ib_mr *ibmr, struct scatterlist *sg,
+			  int sg_nents, unsigned int *sg_offset)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_mmap(struct ib_ucontext *ibcontext, struct vm_area_struct *vma)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_modify_port(struct ib_device *ibdev, u8 port, int mask,
+			    struct ib_port_modify *props)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_modify_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
+			  int attr_mask, struct ib_udata *udata)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_poll_cq(struct ib_cq *ibcq, int num_entries, struct ib_wc *wc)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_post_recv(struct ib_qp *ibqp, const struct ib_recv_wr *wr,
+			  const struct ib_recv_wr **bad_wr)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_post_send(struct ib_qp *ibqp, const struct ib_send_wr *wr,
+			  const struct ib_send_wr **bad_wr)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_query_pkey(struct ib_device *ibdev, u8 port, u16 index,
+			   u16 *pkey)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+int virtio_rdma_query_qp(struct ib_qp *ibqp, struct ib_qp_attr *attr,
+			 int attr_mask, struct ib_qp_init_attr *init_attr)
+{
+	printk("%s:\n", __func__);
+
+	return 0;
+}
+
+struct ib_mr *virtio_rdma_reg_user_mr(struct ib_pd *pd, u64 start, u64 length,
+				      u64 virt_addr, int access_flags,
+				      struct ib_udata *udata)
+{
+	printk("%s:\n", __func__);
+
+	return NULL;
+}
+
+int virtio_rdma_req_notify_cq(struct ib_cq *ibcq,
+			      enum ib_cq_notify_flags notify_flags)
+{
+	printk("%s:\n", __func__);
+
 	return 0;
 }
 
@@ -184,6 +404,38 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.query_device = virtio_rdma_query_device,
 	.query_port = virtio_rdma_query_port,
 	.query_gid = virtio_rdma_query_gid,
+	.add_gid = virtio_rdma_add_gid,
+	.alloc_mr = virtio_rdma_alloc_mr,
+	.alloc_pd = virtio_rdma_alloc_pd,
+	.alloc_ucontext = virtio_rdma_alloc_ucontext,
+	.create_ah = virtio_rdma_create_ah,
+	.create_cq = virtio_rdma_create_cq,
+	.create_qp = virtio_rdma_create_qp,
+	.dealloc_pd = virtio_rdma_dealloc_pd,
+	.dealloc_ucontext = virtio_rdma_dealloc_ucontext,
+	.del_gid = virtio_rdma_del_gid,
+	.dereg_mr = virtio_rdma_dereg_mr,
+	.destroy_ah = virtio_rdma_destroy_ah,
+	.destroy_cq = virtio_rdma_destroy_cq,
+	.destroy_qp = virtio_rdma_destroy_qp,
+	.get_dev_fw_str = virtio_rdma_get_fw_ver_str,
+	.get_dma_mr = virtio_rdma_get_dma_mr,
+	.get_link_layer = virtio_rdma_port_link_layer,
+	.get_netdev = virtio_rdma_get_netdev,
+	.get_port_immutable = virtio_rdma_port_immutable,
+	.map_mr_sg = virtio_rdma_map_mr_sg,
+	.mmap = virtio_rdma_mmap,
+	.modify_port = virtio_rdma_modify_port,
+	.modify_qp = virtio_rdma_modify_qp,
+	.poll_cq = virtio_rdma_poll_cq,
+	.post_recv = virtio_rdma_post_recv,
+	.post_send = virtio_rdma_post_send,
+	.query_device = virtio_rdma_query_device,
+	.query_pkey = virtio_rdma_query_pkey,
+	.query_port = virtio_rdma_query_port,
+	.query_qp = virtio_rdma_query_qp,
+	.reg_user_mr = virtio_rdma_reg_user_mr,
+	.req_notify_cq = virtio_rdma_req_notify_cq,
 };
 
 static ssize_t hca_type_show(struct device *device,
