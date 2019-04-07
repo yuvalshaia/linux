@@ -47,12 +47,31 @@ struct control_buf {
 enum {
 	VIRTIO_CMD_QUERY_DEVICE = 10,
 	VIRTIO_CMD_QUERY_PORT,
+	VIRTIO_CMD_CREATE_CQ,
+	VIRTIO_CMD_DESTROY_CQ,
 };
 
 struct cmd_query_port {
 	__u8 port;
 };
+
+struct cmd_create_cq {
+	__u32 cqe;
+};
+
+struct rsp_create_cq {
+	__u32 cqn;
+};
+
+struct cmd_destroy_cq {
+	__u32 cqn;
+};
 /* TODO: Move to uapi header file */
+
+struct virtio_rdma_ib_cq {
+	struct ib_cq ibcq;
+	u32 cq_handle;
+};
 
 /* TODO: For the scope fof the RFC i'm utilizing ib*_*_attr structures */
 
@@ -113,7 +132,7 @@ static int virtio_rdma_port_immutable(struct ib_device *ibdev, u8 port_num,
 	immutable->core_cap_flags |= RDMA_CORE_PORT_IBA_ROCE_UDP_ENCAP;
 	immutable->pkey_tbl_len = attr.pkey_tbl_len;
 	immutable->gid_tbl_len = attr.gid_tbl_len;
-	/* immutable->max_mad_size = IB_MGMT_MAD_SIZE; */
+	immutable->max_mad_size = IB_MGMT_MAD_SIZE;
 
 	return 0;
 }
@@ -152,6 +171,8 @@ static int virtio_rdma_query_port(struct ib_device *ibdev, u8 port,
 	int rc;
 
 	cmd = kmalloc(sizeof(*cmd), GFP_ATOMIC);
+	if (!cmd)
+		return -ENOMEM;
 
 	/* We start with state because of inconsistency beween ib and ibv */
 	offs = offsetof(struct ib_port_attr, state);
@@ -179,6 +200,85 @@ static struct net_device *virtio_rdma_get_netdev(struct ib_device *ibdev,
 	printk("%s:\n", __func__);
 
 	return ri->netdev;
+}
+
+struct ib_cq *virtio_rdma_create_cq(struct ib_device *ibdev,
+				    const struct ib_cq_init_attr *attr,
+				    struct ib_ucontext *context,
+				    struct ib_udata *udata)
+{
+	struct scatterlist in, out;
+	struct virtio_rdma_ib_cq *vcq;
+	struct cmd_create_cq *cmd;
+	struct rsp_create_cq *rsp;
+	struct ib_cq *cq = NULL;
+	int rc;
+
+	cmd = kmalloc(sizeof(*cmd), GFP_ATOMIC);
+	if (!cmd)
+		return ERR_PTR(-ENOMEM);
+
+	rsp = kmalloc(sizeof(*rsp), GFP_ATOMIC);
+	if (!rsp) {
+		kfree(cmd);
+		return ERR_PTR(-ENOMEM);
+	}
+
+	vcq = kzalloc(sizeof(*vcq), GFP_KERNEL);
+	if (!vcq)
+		goto out;
+
+	cmd->cqe = attr->cqe;
+	sg_init_one(&in, cmd, sizeof(*cmd));
+	printk("%s: cqe %d\n", __func__, cmd->cqe);
+
+	sg_init_one(&out, rsp, sizeof(*rsp));
+
+	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_CREATE_CQ, &in,
+				  &out);
+	if (rc)
+		goto out_err;
+
+	printk("%s: cqn 0x%x\n", __func__, rsp->cqn);
+	vcq->cq_handle = rsp->cqn;
+	vcq->ibcq.cqe = attr->cqe;
+	cq = &vcq->ibcq;
+
+	goto out;
+
+out_err:
+	kfree(vcq);
+	return ERR_PTR(rc);
+
+out:
+	kfree(rsp);
+	kfree(cmd);
+	return cq;
+}
+
+int virtio_rdma_destroy_cq(struct ib_cq *cq)
+{
+	struct virtio_rdma_ib_cq *vcq;
+	struct scatterlist in;
+	struct cmd_destroy_cq *cmd;
+
+	cmd = kmalloc(sizeof(*cmd), GFP_ATOMIC);
+	if (!cmd)
+		return -ENOMEM;
+
+	vcq = container_of(cq, struct virtio_rdma_ib_cq, ibcq);
+
+	cmd->cqn = vcq->cq_handle;
+	sg_init_one(&in, cmd, sizeof(*cmd));
+
+	virtio_rdma_exec_cmd(to_vdev(cq->device), VIRTIO_CMD_DESTROY_CQ, &in,
+			     NULL);
+
+	kfree(cmd);
+
+	kfree(vcq);
+
+	return 0;
 }
 
 int virtio_rdma_query_gid(struct ib_device *ibdev, u8 port, int index,
@@ -231,16 +331,6 @@ struct ib_ah *virtio_rdma_create_ah(struct ib_pd *pd,
 	return NULL;
 }
 
-struct ib_cq *virtio_rdma_create_cq(struct ib_device *ibdev,
-				    const struct ib_cq_init_attr *attr,
-				    struct ib_ucontext *context,
-				    struct ib_udata *udata)
-{
-	printk("%s:\n", __func__);
-
-	return NULL;
-}
-
 struct ib_qp *virtio_rdma_create_qp(struct ib_pd *pd,
 				    struct ib_qp_init_attr *init_attr,
 				    struct ib_udata *udata)
@@ -281,12 +371,9 @@ int virtio_rdma_destroy_ah(struct ib_ah *ah, u32 flags)
 	return 0;
 }
 
-int virtio_rdma_destroy_cq(struct ib_cq *cq)
-{
-	printk("%s:\n", __func__);
-
-	return 0;
-}
+struct virtio_rdma_cq {
+	struct ib_cq ibcq;
+};
 
 int virtio_rdma_destroy_qp(struct ib_qp *qp)
 {
@@ -406,20 +493,20 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.query_device = virtio_rdma_query_device,
 	.query_port = virtio_rdma_query_port,
 	.get_netdev = virtio_rdma_get_netdev,
+	.create_cq = virtio_rdma_create_cq,
+	.destroy_cq = virtio_rdma_destroy_cq,
 	.query_gid = virtio_rdma_query_gid,
 	.add_gid = virtio_rdma_add_gid,
 	.alloc_mr = virtio_rdma_alloc_mr,
 	.alloc_pd = virtio_rdma_alloc_pd,
 	.alloc_ucontext = virtio_rdma_alloc_ucontext,
 	.create_ah = virtio_rdma_create_ah,
-	.create_cq = virtio_rdma_create_cq,
 	.create_qp = virtio_rdma_create_qp,
 	.dealloc_pd = virtio_rdma_dealloc_pd,
 	.dealloc_ucontext = virtio_rdma_dealloc_ucontext,
 	.del_gid = virtio_rdma_del_gid,
 	.dereg_mr = virtio_rdma_dereg_mr,
 	.destroy_ah = virtio_rdma_destroy_ah,
-	.destroy_cq = virtio_rdma_destroy_cq,
 	.destroy_qp = virtio_rdma_destroy_qp,
 	.get_dev_fw_str = virtio_rdma_get_fw_ver_str,
 	.get_dma_mr = virtio_rdma_get_dma_mr,
@@ -484,7 +571,9 @@ int init_ib(struct virtio_rdma_info *ri)
 	ri->ib_dev.phys_port_cnt = 1;
 	ri->ib_dev.uverbs_cmd_mask =
 		(1ull << IB_USER_VERBS_CMD_QUERY_DEVICE)	|
-		(1ull << IB_USER_VERBS_CMD_QUERY_PORT);
+		(1ull << IB_USER_VERBS_CMD_QUERY_PORT)		|
+		(1ull << IB_USER_VERBS_CMD_CREATE_CQ)		|
+		(1ull << IB_USER_VERBS_CMD_DESTROY_CQ);
 
 	rdma_set_device_sysfs_group(&ri->ib_dev, &virtio_rdmaa_attr_group);
 
