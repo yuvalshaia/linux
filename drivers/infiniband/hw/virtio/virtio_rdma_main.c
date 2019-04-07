@@ -28,6 +28,7 @@
 #include "virtio_rdma.h"
 #include "virtio_rdma_device.h"
 #include "virtio_rdma_ib.h"
+#include "virtio_rdma_netdev.h"
 
 /* TODO:
  * - How to hook to unload driver, we need to undo all the stuff with did
@@ -35,7 +36,7 @@
  * -
  */
 
-static int virtrdma_probe(struct virtio_device *vdev)
+static int virtio_rdma_probe(struct virtio_device *vdev)
 {
 	struct virtio_rdma_info *ri;
 	int rc = -EIO;
@@ -56,15 +57,24 @@ static int virtrdma_probe(struct virtio_device *vdev)
 		goto out_dealloc_ib_device;
 	}
 
+	rc = init_netdev(ri);
+	if (rc) {
+		pr_err("Fail to connect to NetDev layer\n");
+		goto out_fini_device;
+	}
+
 	rc = init_ib(ri);
 	if (rc) {
 		pr_err("Fail to connect to IB layer\n");
-		goto out_fini_device;
+		goto out_fini_netdev;
 	}
 
 	pr_info("VirtIO RDMA device %d probed\n", vdev->index);
 
 	goto out;
+
+out_fini_netdev:
+	fini_netdev(ri);
 
 out_fini_device:
 	fini_device(ri);
@@ -78,7 +88,7 @@ out:
 	return rc;
 }
 
-static void virtrdma_remove(struct virtio_device *vdev)
+static void virtio_rdma_remove(struct virtio_device *vdev)
 {
 	struct virtio_rdma_info *ri = vdev->priv;
 
@@ -88,6 +98,8 @@ static void virtrdma_remove(struct virtio_device *vdev)
 	vdev->priv = NULL;
 
 	fini_ib(ri);
+
+	fini_netdev(ri);
 
 	fini_device(ri);
 
@@ -105,11 +117,11 @@ static struct virtio_driver virtio_rdma_driver = {
 	.driver.name	= KBUILD_MODNAME,
 	.driver.owner	= THIS_MODULE,
 	.id_table	= id_table,
-	.probe		= virtrdma_probe,
-	.remove		= virtrdma_remove,
+	.probe		= virtio_rdma_probe,
+	.remove		= virtio_rdma_remove,
 };
 
-static int __init virtrdma_init(void)
+static int __init virtio_rdma_init(void)
 {
 	int rc;
 
@@ -123,13 +135,13 @@ static int __init virtrdma_init(void)
 	return 0;
 }
 
-static void __exit virtrdma_fini(void)
+static void __exit virtio_rdma_fini(void)
 {
 	unregister_virtio_driver(&virtio_rdma_driver);
 }
 
-module_init(virtrdma_init);
-module_exit(virtrdma_fini);
+module_init(virtio_rdma_init);
+module_exit(virtio_rdma_fini);
 
 MODULE_DEVICE_TABLE(virtio, id_table);
 MODULE_AUTHOR("Yuval Shaia");

@@ -1,5 +1,5 @@
 /*
- * Virtio RDMA device: Driver main data types
+ * Virtio RDMA device: Netdev related functions and data
  *
  * Copyright (C) 2019 Yuval Shaia Oracle Corporation
  *
@@ -18,23 +18,16 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#ifndef __VIRTIO_RDMA__
-#define __VIRTIO_RDMA__
+#ifndef __VIRTIO_RDMA_NETDEV__
+#define __VIRTIO_RDMA_NETDEV__
 
-#include <linux/virtio.h>
-#include <rdma/ib_verbs.h>
+#include "virtio_rdma.h"
 
-struct virtio_rdma_info {
-	struct ib_device ib_dev;
-	struct virtio_device *vdev;
-	struct virtqueue *ctrl_vq;
-	wait_queue_head_t acked; /* arm on send to host, release on recv */
-	struct net_device *netdev;
+struct virtio_rdma_netdev_info {
+	struct virtio_rdma_info *ri;
 };
 
-static inline struct virtio_rdma_info *to_vdev(struct ib_device *ibdev)
-{
-	return container_of(ibdev, struct virtio_rdma_info, ib_dev);
-}
+int init_netdev(struct virtio_rdma_info *ri);
+void fini_netdev(struct virtio_rdma_info *ri);
 
 #endif

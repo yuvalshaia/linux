@@ -171,6 +171,16 @@ static int virtio_rdma_query_port(struct ib_device *ibdev, u8 port,
 	return rc;
 }
 
+static struct net_device *virtio_rdma_get_netdev(struct ib_device *ibdev,
+						 u8 port_num)
+{
+	struct virtio_rdma_info *ri = to_vdev(ibdev);
+
+	printk("%s:\n", __func__);
+
+	return ri->netdev;
+}
+
 int virtio_rdma_query_gid(struct ib_device *ibdev, u8 port, int index,
 			  union ib_gid *gid)
 {
@@ -304,14 +314,6 @@ enum rdma_link_layer virtio_rdma_port_link_layer(struct ib_device *ibdev,
 	return IB_LINK_LAYER_ETHERNET;
 }
 
-static struct net_device *virtio_rdma_get_netdev(struct ib_device *ibdev,
-						 u8 port_num)
-{
-	printk("%s:\n", __func__);
-
-	return NULL;
-}
-
 int virtio_rdma_map_mr_sg(struct ib_mr *ibmr, struct scatterlist *sg,
 			  int sg_nents, unsigned int *sg_offset)
 {
@@ -403,6 +405,7 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.get_port_immutable = virtio_rdma_port_immutable,
 	.query_device = virtio_rdma_query_device,
 	.query_port = virtio_rdma_query_port,
+	.get_netdev = virtio_rdma_get_netdev,
 	.query_gid = virtio_rdma_query_gid,
 	.add_gid = virtio_rdma_add_gid,
 	.alloc_mr = virtio_rdma_alloc_mr,
@@ -421,7 +424,6 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.get_dev_fw_str = virtio_rdma_get_fw_ver_str,
 	.get_dma_mr = virtio_rdma_get_dma_mr,
 	.get_link_layer = virtio_rdma_port_link_layer,
-	.get_netdev = virtio_rdma_get_netdev,
 	.get_port_immutable = virtio_rdma_port_immutable,
 	.map_mr_sg = virtio_rdma_map_mr_sg,
 	.mmap = virtio_rdma_mmap,
@@ -471,29 +473,29 @@ static const struct attribute_group virtio_rdmaa_attr_group = {
 	.attrs = virtio_rdmaa_class_attributes,
 };
 
-int init_ib(struct virtio_rdma_info *dev)
+int init_ib(struct virtio_rdma_info *ri)
 {
 	int rc;
 
-	dev->ib_dev.owner = THIS_MODULE;
-	dev->ib_dev.num_comp_vectors = 1;
-	dev->ib_dev.dev.parent = &dev->vdev->dev;
-	dev->ib_dev.node_type = RDMA_NODE_IB_CA;
-	dev->ib_dev.phys_port_cnt = 1;
-	dev->ib_dev.uverbs_cmd_mask =
+	ri->ib_dev.owner = THIS_MODULE;
+	ri->ib_dev.num_comp_vectors = 1;
+	ri->ib_dev.dev.parent = &ri->vdev->dev;
+	ri->ib_dev.node_type = RDMA_NODE_IB_CA;
+	ri->ib_dev.phys_port_cnt = 1;
+	ri->ib_dev.uverbs_cmd_mask =
 		(1ull << IB_USER_VERBS_CMD_QUERY_DEVICE)	|
 		(1ull << IB_USER_VERBS_CMD_QUERY_PORT);
 
-	rdma_set_device_sysfs_group(&dev->ib_dev, &virtio_rdmaa_attr_group);
+	rdma_set_device_sysfs_group(&ri->ib_dev, &virtio_rdmaa_attr_group);
 
-	ib_set_device_ops(&dev->ib_dev, &virtio_rdma_dev_ops);
+	ib_set_device_ops(&ri->ib_dev, &virtio_rdma_dev_ops);
 
-	rc = ib_register_device(&dev->ib_dev, "virtio_rdma%d");
+	rc = ib_register_device(&ri->ib_dev, "virtio_rdma%d");
 
 	return rc;
 }
 
-void fini_ib(struct virtio_rdma_info *dev)
+void fini_ib(struct virtio_rdma_info *ri)
 {
-	ib_unregister_device(&dev->ib_dev);
+	ib_unregister_device(&ri->ib_dev);
 }

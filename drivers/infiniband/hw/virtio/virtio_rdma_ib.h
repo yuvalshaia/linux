@@ -21,7 +21,7 @@
 #ifndef __VIRTIO_RDMA_IB__
 #define __VIRTIO_RDMA_IB__
 
-int init_ib(struct virtio_rdma_info *dev);
-void fini_ib(struct virtio_rdma_info *dev);
+int init_ib(struct virtio_rdma_info *ri);
+void fini_ib(struct virtio_rdma_info *ri);
 
 #endif
