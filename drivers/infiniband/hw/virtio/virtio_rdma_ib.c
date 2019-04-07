@@ -158,7 +158,7 @@ static int virtio_rdma_query_port(struct ib_device *ibdev, u8 port,
 	sg_init_one(&out, (void *)props + offs, sizeof(*props) - offs);
 
 	cmd->port = port;
-	sg_init_one(&in, cmd, sizeof(cmd));
+	sg_init_one(&in, cmd, sizeof(*cmd));
 	printk("%s: port %d\n", __func__, cmd->port);
 
 	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_QUERY_PORT, &in,
