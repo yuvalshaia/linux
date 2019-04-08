@@ -28,6 +28,11 @@ struct virtio_rdma_pd {
 	u32 pd_handle;
 };
 
+static inline struct virtio_rdma_pd *to_vpd(struct ib_pd *ibpd)
+{
+	return container_of(ibpd, struct virtio_rdma_pd, ibpd);
+}
+
 int init_ib(struct virtio_rdma_info *ri);
 void fini_ib(struct virtio_rdma_info *ri);
 

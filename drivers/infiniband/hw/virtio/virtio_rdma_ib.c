@@ -49,6 +49,8 @@ enum {
 	VIRTIO_CMD_QUERY_PORT,
 	VIRTIO_CMD_CREATE_CQ,
 	VIRTIO_CMD_DESTROY_CQ,
+	VIRTIO_CMD_CREATE_PD,
+	VIRTIO_CMD_DESTROY_PD,
 };
 
 struct cmd_query_port {
@@ -66,6 +68,15 @@ struct rsp_create_cq {
 struct cmd_destroy_cq {
 	__u32 cqn;
 };
+
+struct rsp_create_pd {
+	__u32 pdn;
+};
+
+struct cmd_destroy_pd {
+	__u32 pdn;
+};
+
 /* TODO: Move to uapi header file */
 
 struct virtio_rdma_ib_cq {
@@ -214,6 +225,8 @@ struct ib_cq *virtio_rdma_create_cq(struct ib_device *ibdev,
 	struct ib_cq *cq = NULL;
 	int rc;
 
+	/* TODO: Check MAX_CQ */
+
 	cmd = kmalloc(sizeof(*cmd), GFP_ATOMIC);
 	if (!cmd)
 		return ERR_PTR(-ENOMEM);
@@ -261,6 +274,7 @@ int virtio_rdma_destroy_cq(struct ib_cq *cq)
 	struct virtio_rdma_ib_cq *vcq;
 	struct scatterlist in;
 	struct cmd_destroy_cq *cmd;
+	int rc;
 
 	cmd = kmalloc(sizeof(*cmd), GFP_ATOMIC);
 	if (!cmd)
@@ -271,14 +285,70 @@ int virtio_rdma_destroy_cq(struct ib_cq *cq)
 	cmd->cqn = vcq->cq_handle;
 	sg_init_one(&in, cmd, sizeof(*cmd));
 
-	virtio_rdma_exec_cmd(to_vdev(cq->device), VIRTIO_CMD_DESTROY_CQ, &in,
-			     NULL);
+	rc = virtio_rdma_exec_cmd(to_vdev(cq->device), VIRTIO_CMD_DESTROY_CQ,
+				  &in, NULL);
 
 	kfree(cmd);
 
 	kfree(vcq);
 
-	return 0;
+	return rc;
+}
+
+int virtio_rdma_alloc_pd(struct ib_pd *ibpd, struct ib_ucontext *context,
+			 struct ib_udata *udata)
+{
+	struct virtio_rdma_pd *pd = to_vpd(ibpd);
+	struct ib_device *ibdev = ibpd->device;
+	struct rsp_create_pd *rsp;
+	struct scatterlist out;
+	int rc;
+
+	/* TODO: Check MAX_PD */
+
+	rsp = kmalloc(sizeof(*rsp), GFP_ATOMIC);
+	if (!rsp)
+		return -ENOMEM;
+
+	sg_init_one(&out, rsp, sizeof(*rsp));
+
+	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_CREATE_PD, NULL,
+				  &out);
+	if (rc)
+		goto out;
+
+	pd->pd_handle = rsp->pdn;
+
+	printk("%s: pd_handle=%d\n", __func__, pd->pd_handle);
+
+out:
+	kfree(rsp);
+
+	printk("%s: rc=%d\n", __func__, rc);
+	return rc;
+}
+
+void virtio_rdma_dealloc_pd(struct ib_pd *pd)
+{
+	struct virtio_rdma_pd *vpd = to_vpd(pd);
+	struct ib_device *ibdev = pd->device;
+	struct cmd_destroy_pd *cmd;
+	struct scatterlist in;
+	int rc;
+
+	printk("%s:\n", __func__);
+
+	cmd = kmalloc(sizeof(*cmd), GFP_ATOMIC);
+	if (!cmd)
+		return;
+
+	cmd->pdn = vpd->pd_handle;
+	sg_init_one(&in, cmd, sizeof(*cmd));
+
+	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_DESTROY_PD,
+				  &in, NULL);
+
+	kfree(cmd);
 }
 
 int virtio_rdma_query_gid(struct ib_device *ibdev, u8 port, int index,
@@ -307,14 +377,6 @@ struct ib_mr *virtio_rdma_alloc_mr(struct ib_pd *pd, enum ib_mr_type mr_type,
 	return NULL;
 }
 
-int virtio_rdma_alloc_pd(struct ib_pd *ibpd, struct ib_ucontext *context,
-			 struct ib_udata *udata)
-{
-	printk("%s:\n", __func__);
-
-	return 0;
-}
-
 int virtio_rdma_alloc_ucontext(struct ib_ucontext *uctx, struct ib_udata *udata)
 {
 	printk("%s:\n", __func__);
@@ -338,11 +400,6 @@ struct ib_qp *virtio_rdma_create_qp(struct ib_pd *pd,
 	printk("%s:\n", __func__);
 
 	return NULL;
-}
-
-void virtio_rdma_dealloc_pd(struct ib_pd *pd)
-{
-	printk("%s:\n", __func__);
 }
 
 void virtio_rdma_dealloc_ucontext(struct ib_ucontext *ibcontext)
@@ -495,14 +552,14 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.get_netdev = virtio_rdma_get_netdev,
 	.create_cq = virtio_rdma_create_cq,
 	.destroy_cq = virtio_rdma_destroy_cq,
+	.alloc_pd = virtio_rdma_alloc_pd,
+	.dealloc_pd = virtio_rdma_dealloc_pd,
 	.query_gid = virtio_rdma_query_gid,
 	.add_gid = virtio_rdma_add_gid,
 	.alloc_mr = virtio_rdma_alloc_mr,
-	.alloc_pd = virtio_rdma_alloc_pd,
 	.alloc_ucontext = virtio_rdma_alloc_ucontext,
 	.create_ah = virtio_rdma_create_ah,
 	.create_qp = virtio_rdma_create_qp,
-	.dealloc_pd = virtio_rdma_dealloc_pd,
 	.dealloc_ucontext = virtio_rdma_dealloc_ucontext,
 	.del_gid = virtio_rdma_del_gid,
 	.dereg_mr = virtio_rdma_dereg_mr,
@@ -574,7 +631,9 @@ int init_ib(struct virtio_rdma_info *ri)
 		(1ull << IB_USER_VERBS_CMD_QUERY_DEVICE)	|
 		(1ull << IB_USER_VERBS_CMD_QUERY_PORT)		|
 		(1ull << IB_USER_VERBS_CMD_CREATE_CQ)		|
-		(1ull << IB_USER_VERBS_CMD_DESTROY_CQ);
+		(1ull << IB_USER_VERBS_CMD_DESTROY_CQ)		|
+		(1ull << IB_USER_VERBS_CMD_CREATE_PD)		|
+		(1ull << IB_USER_VERBS_CMD_DESTROY_PD);
 
 	rdma_set_device_sysfs_group(&ri->ib_dev, &virtio_rdmaa_attr_group);
 
