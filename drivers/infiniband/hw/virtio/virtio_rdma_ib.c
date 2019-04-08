@@ -51,6 +51,7 @@ enum {
 	VIRTIO_CMD_DESTROY_CQ,
 	VIRTIO_CMD_CREATE_PD,
 	VIRTIO_CMD_DESTROY_PD,
+	VIRTIO_CMD_GET_DMA_MR,
 };
 
 struct cmd_query_port {
@@ -75,6 +76,17 @@ struct rsp_create_pd {
 
 struct cmd_destroy_pd {
 	__u32 pdn;
+};
+
+struct cmd_get_dma_mr {
+	__u32 pdn;
+	__u32 access_flags;
+};
+
+struct rsp_get_dma_mr {
+	__u32 mrn;
+	__u32 lkey;
+	__u32 rkey;
 };
 
 /* TODO: Move to uapi header file */
@@ -334,7 +346,6 @@ void virtio_rdma_dealloc_pd(struct ib_pd *pd)
 	struct ib_device *ibdev = pd->device;
 	struct cmd_destroy_pd *cmd;
 	struct scatterlist in;
-	int rc;
 
 	printk("%s:\n", __func__);
 
@@ -345,10 +356,61 @@ void virtio_rdma_dealloc_pd(struct ib_pd *pd)
 	cmd->pdn = vpd->pd_handle;
 	sg_init_one(&in, cmd, sizeof(*cmd));
 
-	rc = virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_DESTROY_PD,
-				  &in, NULL);
+	virtio_rdma_exec_cmd(to_vdev(ibdev), VIRTIO_CMD_DESTROY_PD, &in, NULL);
 
 	kfree(cmd);
+}
+
+struct ib_mr *virtio_rdma_get_dma_mr(struct ib_pd *pd, int acc)
+
+{
+	struct virtio_rdma_user_mr *mr;
+	struct scatterlist in, out;
+	struct cmd_get_dma_mr *cmd = NULL;
+	struct rsp_get_dma_mr *rsp = NULL;
+	int rc;
+
+	mr = kzalloc(sizeof(*mr), GFP_KERNEL);
+	if (!mr)
+		return ERR_PTR(-ENOMEM);
+
+	cmd = kmalloc(sizeof(*cmd), GFP_ATOMIC);
+	if (!cmd) {
+		kfree(mr);
+		return ERR_PTR(-ENOMEM);
+	}
+
+	rsp = kmalloc(sizeof(*rsp), GFP_ATOMIC);
+	if (!cmd) {
+		kfree(mr);
+		kfree(cmd);
+		return ERR_PTR(-ENOMEM);
+	}
+
+	cmd->pdn = to_vpd(pd)->pd_handle;
+	cmd->access_flags = acc;
+	sg_init_one(&in, cmd, sizeof(*cmd));
+
+	sg_init_one(&out, rsp, sizeof(*rsp));
+
+	rc = virtio_rdma_exec_cmd(to_vdev(pd->device), VIRTIO_CMD_GET_DMA_MR,
+				  &in, &out);
+	if (rc) {
+		kfree(mr);
+		kfree(cmd);
+		return ERR_PTR(rc);
+	}
+
+	mr->mr_handle = rsp->mrn;
+	mr->ibmr.lkey = rsp->lkey;
+	mr->ibmr.rkey = rsp->rkey;
+
+	printk("%s: mr_handle=0x%x\n", __func__, mr->mr_handle);
+
+	kfree(cmd);
+	kfree(rsp);
+
+	return &mr->ibmr;
 }
 
 int virtio_rdma_query_gid(struct ib_device *ibdev, u8 port, int index,
@@ -442,14 +504,6 @@ int virtio_rdma_destroy_qp(struct ib_qp *qp)
 static void virtio_rdma_get_fw_ver_str(struct ib_device *device, char *str)
 {
 	printk("%s:\n", __func__);
-}
-
-struct ib_mr *virtio_rdma_get_dma_mr(struct ib_pd *pd, int acc)
-
-{
-	printk("%s:\n", __func__);
-
-	return 0;
 }
 
 enum rdma_link_layer virtio_rdma_port_link_layer(struct ib_device *ibdev,
@@ -554,6 +608,7 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.destroy_cq = virtio_rdma_destroy_cq,
 	.alloc_pd = virtio_rdma_alloc_pd,
 	.dealloc_pd = virtio_rdma_dealloc_pd,
+	.get_dma_mr = virtio_rdma_get_dma_mr,
 	.query_gid = virtio_rdma_query_gid,
 	.add_gid = virtio_rdma_add_gid,
 	.alloc_mr = virtio_rdma_alloc_mr,
@@ -566,7 +621,6 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.destroy_ah = virtio_rdma_destroy_ah,
 	.destroy_qp = virtio_rdma_destroy_qp,
 	.get_dev_fw_str = virtio_rdma_get_fw_ver_str,
-	.get_dma_mr = virtio_rdma_get_dma_mr,
 	.get_link_layer = virtio_rdma_port_link_layer,
 	.get_port_immutable = virtio_rdma_port_immutable,
 	.map_mr_sg = virtio_rdma_map_mr_sg,
@@ -632,8 +686,8 @@ int init_ib(struct virtio_rdma_info *ri)
 		(1ull << IB_USER_VERBS_CMD_QUERY_PORT)		|
 		(1ull << IB_USER_VERBS_CMD_CREATE_CQ)		|
 		(1ull << IB_USER_VERBS_CMD_DESTROY_CQ)		|
-		(1ull << IB_USER_VERBS_CMD_CREATE_PD)		|
-		(1ull << IB_USER_VERBS_CMD_DESTROY_PD);
+		(1ull << IB_USER_VERBS_CMD_ALLOC_PD)		|
+		(1ull << IB_USER_VERBS_CMD_DEALLOC_PD);
 
 	rdma_set_device_sysfs_group(&ri->ib_dev, &virtio_rdmaa_attr_group);
 
