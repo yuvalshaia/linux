@@ -20,11 +20,11 @@
 
 #include <linux/scatterlist.h>
 #include <linux/virtio.h>
-#include <rdma/ib_verbs.h>
 #include <rdma/ib_mad.h>
 
 #include "virtio_rdma.h"
 #include "virtio_rdma_device.h"
+#include "virtio_rdma_ib.h"
 
 /* TODO: Move to uapi header file */
 
@@ -525,6 +525,7 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.query_qp = virtio_rdma_query_qp,
 	.reg_user_mr = virtio_rdma_reg_user_mr,
 	.req_notify_cq = virtio_rdma_req_notify_cq,
+	INIT_RDMA_OBJ_SIZE(ib_pd, virtio_rdma_pd, ibpd),
 };
 
 static ssize_t hca_type_show(struct device *device,

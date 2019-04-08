@@ -21,6 +21,13 @@
 #ifndef __VIRTIO_RDMA_IB__
 #define __VIRTIO_RDMA_IB__
 
+#include <rdma/ib_verbs.h>
+
+struct virtio_rdma_pd {
+	struct ib_pd ibpd;
+	u32 pd_handle;
+};
+
 int init_ib(struct virtio_rdma_info *ri);
 void fini_ib(struct virtio_rdma_info *ri);
 
