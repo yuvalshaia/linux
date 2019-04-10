@@ -413,6 +413,22 @@ struct ib_mr *virtio_rdma_get_dma_mr(struct ib_pd *pd, int acc)
 	return &mr->ibmr;
 }
 
+struct ib_qp *virtio_rdma_create_qp(struct ib_pd *pd,
+				    struct ib_qp_init_attr *init_attr,
+				    struct ib_udata *udata)
+{
+	/* struct pvrdma_dev *dev = to_vdev(pd->device); */
+	struct virtio_rdma_qp *qp;
+
+	printk("%s:\n", __func__);
+
+	qp = kzalloc(sizeof(*qp), GFP_KERNEL);
+	if (!qp)
+		return ERR_PTR(-ENOMEM);
+
+	return &qp->ibqp;
+}
+
 int virtio_rdma_query_gid(struct ib_device *ibdev, u8 port, int index,
 			  union ib_gid *gid)
 {
@@ -448,15 +464,6 @@ int virtio_rdma_alloc_ucontext(struct ib_ucontext *uctx, struct ib_udata *udata)
 
 struct ib_ah *virtio_rdma_create_ah(struct ib_pd *pd,
 				    struct rdma_ah_attr *ah_attr, u32 flags,
-				    struct ib_udata *udata)
-{
-	printk("%s:\n", __func__);
-
-	return NULL;
-}
-
-struct ib_qp *virtio_rdma_create_qp(struct ib_pd *pd,
-				    struct ib_qp_init_attr *init_attr,
 				    struct ib_udata *udata)
 {
 	printk("%s:\n", __func__);
@@ -609,12 +616,12 @@ static const struct ib_device_ops virtio_rdma_dev_ops = {
 	.alloc_pd = virtio_rdma_alloc_pd,
 	.dealloc_pd = virtio_rdma_dealloc_pd,
 	.get_dma_mr = virtio_rdma_get_dma_mr,
+	.create_qp = virtio_rdma_create_qp,
 	.query_gid = virtio_rdma_query_gid,
 	.add_gid = virtio_rdma_add_gid,
 	.alloc_mr = virtio_rdma_alloc_mr,
 	.alloc_ucontext = virtio_rdma_alloc_ucontext,
 	.create_ah = virtio_rdma_create_ah,
-	.create_qp = virtio_rdma_create_qp,
 	.dealloc_ucontext = virtio_rdma_dealloc_ucontext,
 	.del_gid = virtio_rdma_del_gid,
 	.dereg_mr = virtio_rdma_dereg_mr,
