@@ -1774,10 +1774,7 @@ struct ib_mr {
 	unsigned int	   page_size;
 	enum ib_mr_type	   type;
 	bool		   need_inval;
-	union {
-		struct ib_uobject	*uobject;	/* user */
-		struct list_head	qp_entry;	/* FR */
-	};
+	struct list_head	qp_entry;	/* FR */
 
 	struct ib_dm      *dm;
 	struct ib_sig_attrs *sig_attrs; /* only for IB_MR_TYPE_INTEGRITY MRs */
