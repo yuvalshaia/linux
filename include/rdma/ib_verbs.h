@@ -1785,6 +1785,8 @@ struct ib_mr {
 	 * Implementation details of the RDMA core, don't use in drivers:
 	 */
 	struct rdma_restrack_entry res;
+
+	refcount_t uobjs_refcount; /* How many uobs are pointing to me */
 };
 
 struct ib_mw {

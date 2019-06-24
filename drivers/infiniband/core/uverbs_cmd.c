@@ -766,6 +766,7 @@ static int ib_uverbs_reg_mr(struct uverbs_attr_bundle *attrs)
 	atomic_inc(&pd->usecnt);
 	mr->res.type = RDMA_RESTRACK_MR;
 	rdma_restrack_uadd(&mr->res);
+	refcount_set(&mr->uobjs_refcount, 1);
 
 	uobj->object = mr;
 

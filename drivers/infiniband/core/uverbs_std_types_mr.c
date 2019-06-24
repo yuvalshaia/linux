@@ -38,6 +38,11 @@ static int uverbs_free_mr(struct ib_uobject *uobject,
 			  enum rdma_remove_reason why,
 			  struct uverbs_attr_bundle *attrs)
 {
+	struct ib_mr *mr = uobject->object;
+
+	if (!refcount_dec_and_test(&mr->uobjs_refcount))
+		return 0; /* Not yet done with this mr */
+
 	return ib_dereg_mr_user((struct ib_mr *)uobject->object,
 				&attrs->driver_udata);
 }
