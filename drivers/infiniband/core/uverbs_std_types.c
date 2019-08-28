@@ -194,6 +194,9 @@ static int uverbs_free_pd(struct ib_uobject *uobject,
 	struct ib_pd *pd = uobject->object;
 	int ret;
 
+	if (!refcount_dec_and_test(&pd->uobjs_refcount))
+		return 0; /* Not yet done with this pd */
+
 	ret = ib_destroy_usecnt(&pd->usecnt, why, uobject);
 	if (ret)
 		return ret;

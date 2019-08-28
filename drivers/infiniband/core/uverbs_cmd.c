@@ -435,6 +435,7 @@ static int ib_uverbs_alloc_pd(struct uverbs_attr_bundle *attrs)
 	pd->device  = ib_dev;
 	pd->__internal_mr = NULL;
 	atomic_set(&pd->usecnt, 0);
+	refcount_set(&pd->uobjs_refcount, 1);
 	pd->res.type = RDMA_RESTRACK_PD;
 
 	ret = ib_dev->ops.alloc_pd(pd, &attrs->driver_udata);
