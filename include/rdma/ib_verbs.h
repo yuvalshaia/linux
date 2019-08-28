@@ -62,6 +62,7 @@
 #include <linux/irqflags.h>
 #include <linux/preempt.h>
 #include <linux/dim.h>
+#include <linux/refcount.h>
 #include <uapi/rdma/ib_user_verbs.h>
 #include <rdma/rdma_counter.h>
 #include <rdma/restrack.h>
@@ -1518,6 +1519,8 @@ struct ib_pd {
 	 */
 	struct ib_mr	       *__internal_mr;
 	struct rdma_restrack_entry res;
+
+	refcount_t uobjs_refcount; /* How many uobs are pointing to me */
 };
 
 struct ib_xrcd {
