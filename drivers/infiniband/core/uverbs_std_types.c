@@ -321,6 +321,110 @@ DECLARE_UVERBS_NAMED_OBJECT(UVERBS_OBJECT_PD,
 			    UVERBS_TYPE_ALLOC_IDR(uverbs_free_pd),
 			    &UVERBS_METHOD(UVERBS_METHOD_PD_DESTROY));
 
+static int UVERBS_HANDLER(UVERBS_METHOD_PD_IMPORT)(
+	struct uverbs_attr_bundle *attrs)
+{
+	struct ib_uverbs_completion_event_file *ev_file = NULL;
+	//struct ib_device *ibdev = attrs->context->device;
+	struct ib_uobject *ev_file_uobj;
+	struct ib_uobject *dst_uobj, *src_uobj;
+	uint32_t fd, handle;
+	int ret;
+
+	/*
+	if (!ib_dev->ops.create_cq || !ib_dev->ops.destroy_cq)
+		return -EOPNOTSUPP;
+	*/
+
+	ret = uverbs_copy_from(&handle, attrs, UVERBS_ATTR_IMPORT_PD_HANDLE);
+	printk("ret=%d, fd=%d\n", ret, fd);
+	ret = uverbs_copy_from(&fd, attrs, UVERBS_ATTR_IMPORT_PD_FD);
+	printk("ret=%d, handle=%d\n", ret, handle);
+
+	dst_uobj = uverbs_attr_get_uobject(attrs,
+					   UVERBS_ATTR_IMPORT_PD_NEW_HANDLE);
+	src_uobj = uverbs_attr_get_uobject(attrs, UVERBS_ATTR_IMPORT_PD_HANDLE);
+
+	if (!dst_uobj || !src_uobj)
+		return -EINVAL;
+
+	ev_file_uobj = uverbs_attr_get_uobject(attrs, UVERBS_ATTR_IMPORT_PD_FD);
+	if (IS_ERR(ev_file_uobj))
+		return -EINVAL;
+
+	ev_file = container_of(ev_file_uobj,
+			       struct ib_uverbs_completion_event_file, uobj);
+	uverbs_uobject_get(ev_file_uobj);
+
+	/*
+	if (attr.comp_vector >= attrs->ufile->device->num_comp_vectors) {
+		ret = -EINVAL;
+		goto err_event_file;
+	}
+
+	obj->comp_events_reported  = 0;
+	obj->async_events_reported = 0;
+	INIT_LIST_HEAD(&obj->comp_list);
+	INIT_LIST_HEAD(&obj->async_list);
+
+	cq = rdma_zalloc_drv_obj(ib_dev, ib_cq);
+	if (!cq) {
+		ret = -ENOMEM;
+		goto err_event_file;
+	}
+
+	cq->device        = ib_dev;
+	cq->uobject       = &obj->uobject;
+	cq->comp_handler  = ib_uverbs_comp_handler;
+	cq->event_handler = ib_uverbs_cq_event_handler;
+	cq->cq_context    = ev_file ? &ev_file->ev_queue : NULL;
+	atomic_set(&cq->usecnt, 0);
+	cq->res.type = RDMA_RESTRACK_CQ;
+
+	ret = ib_dev->ops.create_cq(cq, &attr, &attrs->driver_udata);
+	if (ret)
+		goto err_free;
+
+	obj->uobject.object = cq;
+	rdma_restrack_uadd(&cq->res);
+
+	ret = uverbs_copy_to(attrs, UVERBS_ATTR_CREATE_CQ_RESP_CQE, &cq->cqe,
+			     sizeof(cq->cqe));
+	if (ret)
+		goto err_cq;
+	*/
+
+	return 0;
+	/*
+err_cq:
+	ib_destroy_cq_user(cq, uverbs_get_cleared_udata(attrs));
+	cq = NULL;
+err_free:
+	kfree(cq);
+err_event_file:
+	if (ev_file)
+		uverbs_uobject_put(ev_file_uobj);
+	return ret;
+	*/
+};
+
+DECLARE_UVERBS_NAMED_METHOD(
+	UVERBS_METHOD_PD_IMPORT,
+	UVERBS_ATTR_FD(UVERBS_ATTR_IMPORT_PD_FD,
+		       UVERBS_OBJECT_PD,
+		       UVERBS_ACCESS_NEW,
+		       UA_MANDATORY),
+	UVERBS_ATTR_IDR(UVERBS_ATTR_IMPORT_PD_HANDLE,
+			UVERBS_OBJECT_PD,
+			UVERBS_ACCESS_NEW,
+			UA_MANDATORY),
+	UVERBS_ATTR_PTR_OUT(UVERBS_ATTR_IMPORT_PD_NEW_HANDLE,
+			    UVERBS_ATTR_TYPE(u32),
+			    UA_MANDATORY));
+
+//DECLARE_UVERBS_GLOBAL_METHODS(UVERBS_OBJECT_PD,
+//			      &UVERBS_METHOD(UVERBS_METHOD_PD_IMPORT));
+
 const struct uapi_definition uverbs_def_obj_intf[] = {
 	UAPI_DEF_CHAIN_OBJ_TREE_NAMED(UVERBS_OBJECT_PD,
 				      UAPI_DEF_OBJ_NEEDS_FN(dealloc_pd)),

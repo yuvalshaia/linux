@@ -195,10 +195,17 @@ enum uverbs_attrs_info_handles_id {
 
 enum uverbs_methods_pd {
 	UVERBS_METHOD_PD_DESTROY,
+	UVERBS_METHOD_PD_IMPORT,
 };
 
 enum uverbs_attrs_pd_destroy_ids {
 	UVERBS_ATTR_DESTROY_PD_HANDLE,
+};
+
+enum uverbs_attrs_pd_import_ids {
+	UVERBS_ATTR_IMPORT_PD_FD,
+	UVERBS_ATTR_IMPORT_PD_HANDLE,
+	UVERBS_ATTR_IMPORT_PD_NEW_HANDLE,
 };
 
 enum uverbs_methods_mw {
