@@ -30,6 +30,7 @@
  * SOFTWARE.
  */
 
+#include <linux/file.h>
 #include <rdma/uverbs_std_types.h>
 #include <rdma/ib_user_verbs.h>
 #include <rdma/ib_verbs.h>
@@ -38,6 +39,7 @@
 #include <rdma/restrack.h>
 #include "rdma_core.h"
 #include "uverbs.h"
+#include <rdma/uverbs_named_ioctl.h>
 
 static int uverbs_free_ah(struct ib_uobject *uobject,
 			  enum rdma_remove_reason why,
@@ -314,9 +316,80 @@ DECLARE_UVERBS_NAMED_METHOD_DESTROY(
 			UVERBS_ACCESS_DESTROY,
 			UA_MANDATORY));
 
+static int UVERBS_HANDLER(UVERBS_METHOD_PD_IMPORT)(
+	struct uverbs_attr_bundle *attrs)
+{
+	struct ib_uobject *src_pd_uobj, *dst_pd_uobj;
+	struct uverbs_attr_bundle fd_attrs = {};
+	uint32_t fd, handle, new_handle;
+	struct ib_pd *src_ib_pd;
+	struct ib_device *ibdev;
+	struct file *src_filep;
+	int ret;
+
+	ret = uverbs_get_const(&fd, attrs, UVERBS_ATTR_IMPORT_PD_FD_HANDLE);
+	if (ret)
+		return ret;
+
+	ret = uverbs_get_const(&handle, attrs, UVERBS_ATTR_IMPORT_PD_PD_HANDLE);
+	if (ret)
+		return ret;
+
+	src_filep = fget(fd);
+	if (!src_filep)
+		return -EINVAL;
+
+	/* Get pointer to source ib_pd */
+	fd_attrs.ufile = (struct ib_uverbs_file *)src_filep->private_data;
+	fd_attrs.context = fd_attrs.ufile->ucontext;
+	src_pd_uobj = uobj_get_read(UVERBS_OBJECT_PD,  handle, &fd_attrs);
+	if (IS_ERR(src_pd_uobj)) {
+		ret = -EINVAL;
+		goto out;
+	}
+	src_ib_pd = (struct ib_pd *)src_pd_uobj->object;
+
+	/* Allocate new uobj, make it point to the same ib_pd object */
+	dst_pd_uobj = uobj_alloc(UVERBS_OBJECT_PD, attrs, &ibdev);
+	if (IS_ERR(src_pd_uobj)) {
+		ret = -EINVAL;
+		goto out;
+	}
+	dst_pd_uobj->object = src_pd_uobj->object;
+
+	ret = uobj_alloc_commit(dst_pd_uobj, attrs);
+	if (ret)
+		goto err_free_dst_pd_uobj;
+
+	new_handle = dst_pd_uobj->id;
+	ret = uverbs_copy_to(attrs, UVERBS_ATTR_IMPORT_PD_NEW_PD_HANDLE,
+			     &new_handle, sizeof(new_handle));
+
+	goto out;
+
+err_free_dst_pd_uobj:
+	uobj_alloc_abort(dst_pd_uobj, attrs);
+
+out:
+	fput(src_filep);
+
+	return ret;
+};
+
+DECLARE_UVERBS_NAMED_METHOD(
+	UVERBS_METHOD_PD_IMPORT,
+	UVERBS_ATTR_CONST_IN(UVERBS_ATTR_IMPORT_PD_FD_HANDLE, u32,
+			     UA_MANDATORY),
+	UVERBS_ATTR_CONST_IN(UVERBS_ATTR_IMPORT_PD_PD_HANDLE, u32,
+			     UA_MANDATORY),
+	UVERBS_ATTR_PTR_OUT(UVERBS_ATTR_IMPORT_PD_NEW_PD_HANDLE,
+			    UVERBS_ATTR_TYPE(u32),
+			    UA_MANDATORY));
+
 DECLARE_UVERBS_NAMED_OBJECT(UVERBS_OBJECT_PD,
 			    UVERBS_TYPE_ALLOC_IDR(uverbs_free_pd),
-			    &UVERBS_METHOD(UVERBS_METHOD_PD_DESTROY));
+			    &UVERBS_METHOD(UVERBS_METHOD_PD_DESTROY),
+			    &UVERBS_METHOD(UVERBS_METHOD_PD_IMPORT));
 
 const struct uapi_definition uverbs_def_obj_intf[] = {
 	UAPI_DEF_CHAIN_OBJ_TREE_NAMED(UVERBS_OBJECT_PD,
